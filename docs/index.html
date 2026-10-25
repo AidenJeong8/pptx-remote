@@ -3,235 +3,77 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>PPTX Remote — present a .pptx, control it from your phone</title>
-<meta name="description" content="Open the site, drop in a PowerPoint file, scan the QR code, and control your slides from your phone. Nothing to install, nothing uploaded.">
+<title>PPTX Remote</title>
+<meta name="description" content="Present a .pptx and control it from your phone. Nothing to install, nothing uploaded.">
 <meta property="og:title" content="PPTX Remote">
-<meta property="og:description" content="Drop in a .pptx, scan a QR code, control the slideshow from your phone.">
+<meta property="og:description" content="Present a .pptx and control it from your phone.">
 <meta property="og:image" content="https://aidenjeong8.github.io/pptx-remote/img/presenter.png">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%234f8cff'/><path d='M12 9l11 7-11 7z' fill='white'/></svg>">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8'/><path d='M12 9l11 7-11 7z' fill='white'/></svg>">
 <script src="vendor/peerjs.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
 <script src="vendor/qrcode.js"></script>
 <style>
-  :root {
-    --bg:#0b0d11; --bg2:#11141a; --panel:#161a22; --line:#252b36; --text:#eef0f5; --muted:#8e97ab;
-    --accent:#4f8cff; --accent2:#8b5cf6; --ok:#3ddc84; --err:#ff6b6b;
-  }
+  :root { --bg:#fff; --text:#111; --muted:#888; --line:#e5e5e5; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#0a0a0a; --text:#f2f2f2; --muted:#777; --line:#222; } }
   * { box-sizing:border-box; }
-  html { scroll-behavior:smooth; -webkit-text-size-adjust:100%; text-size-adjust:100%; }
-  body { margin:0; background:var(--bg); color:var(--text); font:16px/1.6 Inter, -apple-system, system-ui, sans-serif; -webkit-font-smoothing:antialiased; overflow-x:hidden; }
-  a { color:inherit; }
   [hidden] { display:none !important; }
-  .wrap { max-width:1120px; margin:0 auto; padding:0 24px; }
+  html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
+  body { margin:0; min-height:100vh; background:var(--bg); color:var(--text); font:15px/1.5 -apple-system, system-ui, sans-serif; -webkit-font-smoothing:antialiased; display:flex; flex-direction:column; }
+  a, button.link { color:var(--muted); text-decoration:none; background:none; border:0; padding:0; font:inherit; cursor:pointer; }
+  a:hover, button.link:hover { color:var(--text); }
+  header { display:flex; justify-content:space-between; align-items:center; gap:16px; padding:20px 24px; }
+  header .name { font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 
-  nav { position:sticky; top:0; z-index:10; backdrop-filter:blur(12px); background:#0b0d11cc; border-bottom:1px solid #ffffff0d; }
-  nav .wrap { display:flex; align-items:center; justify-content:space-between; height:60px; }
-  .logo { display:flex; align-items:center; gap:10px; font-weight:700; letter-spacing:-.01em; text-decoration:none; }
-  .logo i { width:26px; height:26px; border-radius:7px; background:linear-gradient(135deg, var(--accent), var(--accent2)); display:grid; place-items:center; font-style:normal; font-size:12px; }
-  nav .links { display:flex; gap:22px; align-items:center; font-size:14px; color:var(--muted); }
-  nav .links a { text-decoration:none; }
-  nav .links a:hover { color:var(--text); }
-  .btn { display:inline-flex; align-items:center; justify-content:center; gap:8px; padding:12px 20px; border-radius:12px; font:600 15px Inter, system-ui, sans-serif; text-decoration:none; transition:.15s; border:1px solid transparent; cursor:pointer; }
-  .btn.primary { background:var(--accent); color:#fff; }
-  .btn.primary:hover { background:#3d7bf0; }
-  .btn.primary:disabled { opacity:.45; cursor:default; }
-  .btn.ghost { border-color:var(--line); color:var(--text); background:var(--panel); }
-  .btn.ghost:hover { border-color:#3a4252; }
-  .btn.sm { padding:7px 14px; font-size:13px; border-radius:9px; }
-  .btn.lg { padding:16px 26px; font-size:17px; border-radius:14px; }
+  #landing { flex:1; display:flex; flex-direction:column; justify-content:center; align-items:center; padding:0 24px 12vh; text-align:center; }
+  h1 { font-size:clamp(26px, 4vw, 34px); font-weight:600; letter-spacing:-.02em; line-height:1.2; margin:0 0 32px; }
+  #drop { display:block; width:100%; max-width:520px; padding:56px 24px; border:1px dashed var(--muted); border-radius:12px; cursor:pointer; color:var(--muted); transition:border-color .15s, color .15s; }
+  #drop:hover, #drop.over { border-color:var(--text); color:var(--text); }
+  #dropStatus { min-height:22px; margin-top:16px; color:var(--muted); }
+  #dropStatus.err { color:#e5484d; }
+  .fine { margin-top:8px; font-size:13px; color:var(--muted); }
 
-  /* Landing */
-  .hero { position:relative; padding:72px 0 24px; text-align:center; }
-  .hero::before { content:""; position:absolute; inset:-200px 0 auto; height:760px; background:radial-gradient(600px 300px at 50% 30%, #4f8cff33, transparent 70%), radial-gradient(500px 260px at 70% 55%, #8b5cf622, transparent 70%); pointer-events:none; }
-  .pill { position:relative; display:inline-flex; gap:8px; align-items:center; font-size:13px; color:var(--muted); border:1px solid var(--line); background:var(--panel); padding:6px 12px; border-radius:999px; }
-  .pill b { width:7px; height:7px; border-radius:50%; background:var(--ok); box-shadow:0 0 10px var(--ok); }
-  h1 { position:relative; font-size:clamp(38px, 6.6vw, 68px); line-height:1.04; letter-spacing:-.035em; margin:20px auto 16px; max-width:1000px; font-weight:800; }
-  h1 span { background:linear-gradient(90deg, #7fb0ff, #b79cff); -webkit-background-clip:text; background-clip:text; color:transparent; }
-  .lede { position:relative; font-size:clamp(17px, 2.2vw, 20px); color:var(--muted); max-width:620px; margin:0 auto 36px; }
-
-  #drop { position:relative; display:block; max-width:760px; margin:0 auto; border:2px dashed #34405a; border-radius:22px; padding:44px 24px; cursor:pointer; background:linear-gradient(180deg, #161b26cc, #12161ecc); transition:.15s; }
-  #drop:hover, #drop.over { border-color:var(--accent); background:#18223a; }
-  #drop .ic { width:56px; height:56px; margin:0 auto 14px; border-radius:16px; background:#4f8cff22; color:#8fb8ff; display:grid; place-items:center; }
-  #drop strong { display:block; font-size:21px; letter-spacing:-.01em; }
-  #drop .hint { color:var(--muted); font-size:15px; margin-top:4px; }
-  #drop .btn { margin-top:20px; pointer-events:none; }
-  #dropStatus { min-height:24px; margin-top:16px; color:var(--muted); font-size:15px; }
-  #dropStatus.err { color:var(--err); }
-  .privacy { position:relative; margin-top:14px; font-size:13px; color:var(--muted); }
-
-  .demo { position:relative; margin:72px auto 0; max-width:1040px; height:560px; }
-  .laptop { position:absolute; left:0; top:0; width:82%; }
-  .laptop .screen { background:#000; border:10px solid #1c2029; border-radius:18px 18px 4px 4px; overflow:hidden; box-shadow:0 40px 120px -20px #000, 0 0 0 1px #2a2f3a; }
-  .laptop .screen img { display:block; width:100%; }
-  .laptop .base { height:16px; margin:0 -5%; background:linear-gradient(#2a2f3a, #161a22); border-radius:0 0 18px 18px; }
-  .phone { position:absolute; right:0; top:60px; width:240px; border-radius:38px; background:#000; padding:10px; box-shadow:0 40px 100px -10px #000, 0 0 0 1px #2a2f3a, inset 0 0 0 2px #22262f; }
-  .phone img { display:block; width:100%; border-radius:30px; }
-
-  section { padding:96px 0; }
-  .eyebrow { color:var(--accent); font-weight:600; font-size:13px; letter-spacing:.08em; text-transform:uppercase; }
-  h2 { font-size:clamp(30px, 4.4vw, 44px); letter-spacing:-.025em; line-height:1.1; margin:10px 0 16px; }
-  .sub { color:var(--muted); max-width:620px; font-size:18px; }
-  .grid3 { display:grid; grid-template-columns:repeat(3, 1fr); gap:16px; margin-top:48px; }
-  .f { background:var(--panel); border:1px solid var(--line); border-radius:18px; padding:26px; }
-  .f .ic { width:40px; height:40px; border-radius:11px; display:grid; place-items:center; background:#4f8cff1a; color:#7fb0ff; margin-bottom:16px; }
-  .f h3 { margin:0 0 6px; font-size:17px; letter-spacing:-.01em; }
-  .f p { margin:0; color:var(--muted); font-size:15px; }
-  .steps { counter-reset:s; }
-  .step { position:relative; padding:28px; border-radius:18px; background:linear-gradient(180deg, var(--panel), var(--bg2)); border:1px solid var(--line); }
-  .step::before { counter-increment:s; content:counter(s); display:grid; place-items:center; width:32px; height:32px; border-radius:50%; background:var(--accent); font-weight:700; font-size:14px; margin-bottom:16px; }
-  .step h3 { margin:0 0 6px; font-size:18px; }
-  .step p { margin:0; color:var(--muted); font-size:15px; }
-  .faq { max-width:760px; margin-top:40px; }
-  details { border-bottom:1px solid var(--line); padding:18px 0; }
-  summary { cursor:pointer; font-weight:600; list-style:none; display:flex; justify-content:space-between; gap:16px; }
-  summary::-webkit-details-marker { display:none; }
-  summary::after { content:"+"; color:var(--muted); font-size:20px; line-height:1; transition:.2s; }
-  details[open] summary::after { transform:rotate(45deg); }
-  details p { color:var(--muted); margin:10px 0 0; }
-  footer { border-top:1px solid var(--line); padding:28px 0; color:var(--muted); font-size:14px; }
-  footer .wrap { display:flex; justify-content:space-between; gap:16px; flex-wrap:wrap; }
-
-  /* Presenter app */
-  #app { padding:32px 0 80px; }
-  .apphead { display:flex; align-items:flex-end; justify-content:space-between; gap:16px; flex-wrap:wrap; margin-bottom:24px; }
-  .apphead h2 { font-size:28px; margin:4px 0 0; word-break:break-word; }
-  .apphead .meta { color:var(--muted); font-size:15px; }
-  .appgrid { display:grid; grid-template-columns:1fr 300px; gap:20px; align-items:start; }
-  .card { background:var(--panel); border:1px solid var(--line); border-radius:18px; padding:20px; }
-  #preview { aspect-ratio:16/9; background:#000; border-radius:12px; overflow:hidden; display:flex; align-items:center; justify-content:center; }
-  .presentRow { display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-top:16px; }
-  .presentRow .hint { color:var(--muted); font-size:14px; }
-  .remote { text-align:center; position:sticky; top:84px; }
-  .remote h3 { margin:0 0 4px; font-size:16px; }
-  .remote .hint { color:var(--muted); font-size:13px; }
-  #qr { background:#fff; border-radius:14px; padding:12px; width:220px; height:220px; margin:14px auto; }
+  #app { flex:1; display:flex; gap:48px; align-items:center; justify-content:center; padding:8px 24px 8vh; }
+  .left { flex:1; max-width:880px; min-width:0; }
+  #preview { --r:1.7778; aspect-ratio:var(--r); width:min(100%, calc((100vh - 190px) * var(--r))); background:#000; border-radius:6px; overflow:hidden; display:flex; align-items:center; justify-content:center; }
+  #present { margin-top:20px; background:var(--text); color:var(--bg); border:0; border-radius:8px; padding:12px 22px; font:600 15px -apple-system, system-ui, sans-serif; cursor:pointer; }
+  .right { flex:none; width:200px; text-align:center; }
+  #qr { width:200px; height:200px; padding:10px; background:#fff; border-radius:6px; }
   #qr svg { width:100%; height:100%; display:block; }
-  #linkStatus { display:inline-flex; align-items:center; gap:8px; font-size:14px; font-weight:500; padding:6px 12px; border-radius:999px; background:#ffffff08; border:1px solid var(--line); }
-  #linkStatus i { width:8px; height:8px; border-radius:50%; background:#f5b942; }
-  #linkStatus.on i { background:var(--ok); box-shadow:0 0 8px var(--ok); }
-  #linkStatus.err i { background:var(--err); }
-  .copyRow { display:flex; gap:6px; margin-top:12px; }
-  .copyRow input { flex:1; min-width:0; background:#0b0d11; border:1px solid var(--line); border-radius:9px; color:var(--muted); font:12px ui-monospace, monospace; padding:7px 9px; }
-  #thumbs { display:grid; grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); gap:12px; margin-top:20px; }
-  .thumb { position:relative; padding:0; border:2px solid transparent; border-radius:10px; overflow:hidden; background:#000; cursor:pointer; aspect-ratio:16/9; display:flex; align-items:center; justify-content:center; }
-  .thumb.cur { border-color:var(--accent); }
-  .spinner { width:18px; height:18px; border:3px solid var(--line); border-top-color:var(--accent); border-radius:50%; animation:spin 1s linear infinite; display:inline-block; vertical-align:-4px; margin-right:8px; }
-  @keyframes spin { to { transform:rotate(360deg); } }
+  #linkStatus { margin-top:14px; color:var(--muted); }
+  #linkStatus.on { color:var(--text); }
+  #copyUrl { margin-top:4px; font-size:13px; }
 
   #stage { position:fixed; inset:0; z-index:100; background:#000; display:flex; align-items:center; justify-content:center; cursor:none; }
-
-  @media (max-width: 900px) {
-    .grid3 { grid-template-columns:1fr; }
-    .appgrid { grid-template-columns:1fr; }
-    .remote { position:static; }
-    .demo { height:auto; }
-    .laptop { position:relative; width:100%; }
-    .phone { position:relative; top:auto; right:auto; width:180px; margin:-70px 8px 0 auto; }
-    nav .links a:not(.btn) { display:none; }
-  }
+  @media (max-width: 760px) { #app { flex-direction:column; gap:32px; } .left { width:100%; } }
 </style>
 </head>
 <body>
-<nav>
-  <div class="wrap">
-    <a class="logo" href="./"><i>▶</i>PPTX Remote</a>
-    <div class="links">
-      <a href="#how">How it works</a>
-      <a href="#faq">FAQ</a>
-      <a class="btn ghost sm" href="https://github.com/AidenJeong8/pptx-remote">GitHub</a>
-    </div>
-  </div>
-</nav>
+<header>
+  <span class="name" id="deckName">PPTX Remote</span>
+  <span><button class="link" id="another" hidden>Open file</button><a id="gh" href="https://github.com/AidenJeong8/pptx-remote">GitHub</a></span>
+</header>
 
-<div id="landing">
-  <header class="hero">
-    <div class="wrap">
-      <div class="pill"><b></b>Free · Nothing to install · Nothing uploaded</div>
-      <h1>Present your slides.<br><span>Control them from your phone.</span></h1>
-      <p class="lede">Drop in a PowerPoint file, scan the QR code, and your phone becomes the clicker: next, back, jump to any slide, with your speaker notes in your hand.</p>
-
-      <label id="drop">
-        <input type="file" id="file" accept=".pptx,application/vnd.openxmlformats-officedocument.presentationml.presentation" hidden>
-        <div class="ic"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4m0 0l-5 5m5-5l5 5"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg></div>
-        <strong>Drop your .pptx here</strong>
-        <div class="hint">or click to choose a file</div>
-        <span class="btn primary lg">Choose a PowerPoint file</span>
-        <div id="dropStatus"></div>
-      </label>
-      <div class="privacy">🔒 Your file stays in your browser. It goes straight to your phone, and never to a server.</div>
-
-      <div class="demo">
-        <div class="laptop"><div class="screen"><img src="img/presenter.png" alt="The presenter page with a loaded deck and a QR code"></div><div class="base"></div></div>
-        <div class="phone"><img src="img/remote.png" alt="The phone remote with the current slide, Prev/Next buttons, notes and a slide grid"></div>
-      </div>
-    </div>
-  </header>
-
-  <section id="how">
-    <div class="wrap">
-      <div class="eyebrow">How it works</div>
-      <h2>Three steps. About ten seconds.</h2>
-      <div class="grid3 steps">
-        <div class="step"><h3>Drop your deck</h3><p>Open this page on the computer you're presenting from and drop in a .pptx. Your slides appear right away.</p></div>
-        <div class="step"><h3>Scan the QR code</h3><p>Point your phone's camera at the code. The remote opens in your phone's browser, so there's no app to download.</p></div>
-        <div class="step"><h3>Present</h3><p>Click <strong>Present fullscreen</strong>. From then on, everything happens from your phone.</p></div>
-      </div>
-      <div class="grid3">
-        <div class="f"><div class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></div><h3>Jump to any slide</h3><p>Every slide is a thumbnail on your phone. Tap one and the big screen goes straight there.</p></div>
-        <div class="f"><div class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg></div><h3>Speaker notes</h3><p>The notes from your .pptx show under the current slide. Only you can see them.</p></div>
-        <div class="f"><div class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></div><h3>Private by design</h3><p>The deck goes directly from your computer to your phone over an encrypted connection. It's never uploaded anywhere.</p></div>
-      </div>
-    </div>
-  </section>
-
-  <section id="faq" style="padding-top:0">
-    <div class="wrap">
-      <div class="eyebrow">FAQ</div>
-      <h2>Good to know</h2>
-      <div class="faq">
-        <details><summary>Does my phone need to be on the same Wi-Fi?</summary><p>No, it usually connects over any network. If it can't, which can happen on some cellular or locked-down office networks, put both devices on the same Wi-Fi and it'll connect.</p></details>
-        <details><summary>Do animations and transitions work?</summary><p>No. Each slide shows in its finished state, with all builds already applied.</p></details>
-        <details><summary>My fonts look a little different</summary><p>Slides are drawn by your browser, so fonts that aren't embedded in the file and aren't installed on your computer get replaced with similar ones.</p></details>
-        <details><summary>Why do I have to click on the computer to go fullscreen?</summary><p>Browsers only let a page go fullscreen after someone clicks on that computer. Click once, and the phone handles everything after that.</p></details>
-        <details><summary>Can I use Keynote or Google Slides?</summary><p>Yes. Export to PowerPoint first: in Keynote, File → Export To → PowerPoint; in Google Slides, File → Download → Microsoft PowerPoint (.pptx).</p></details>
-        <details><summary>Does it work on Windows?</summary><p>Yes. The presenter works in any modern browser, on a Mac, a Windows PC or a Chromebook.</p></details>
-      </div>
-    </div>
-  </section>
-</div>
-
-<main id="app" hidden>
-  <div class="wrap">
-    <div class="apphead">
-      <div><div class="meta" id="deckMeta"></div><h2 id="deckName"></h2></div>
-      <button class="btn ghost sm" id="another">Open a different file</button>
-    </div>
-    <div class="appgrid">
-      <div>
-        <div class="card">
-          <div id="preview"></div>
-          <div class="presentRow">
-            <button class="btn primary lg" id="present">▶ Present fullscreen</button>
-            <span class="hint">← → or space to move · Esc to exit</span>
-          </div>
-        </div>
-        <div id="thumbs"></div>
-      </div>
-      <aside class="card remote">
-        <h3>Phone remote</h3>
-        <div class="hint">Scan with your phone's camera</div>
-        <div id="qr"></div>
-        <div id="linkStatus"><i></i><span>Connecting…</span></div>
-        <div class="copyRow"><input id="remoteUrl" readonly><button class="btn ghost sm" id="copyUrl">Copy</button></div>
-      </aside>
-    </div>
-  </div>
+<main id="landing">
+  <h1>Present a .pptx.<br>Control it from your phone.</h1>
+  <label id="drop">
+    <input type="file" id="file" accept=".pptx,application/vnd.openxmlformats-officedocument.presentationml.presentation" hidden>
+    Drop a .pptx here, or click to choose
+  </label>
+  <div id="dropStatus"></div>
+  <div class="fine">Your file stays on your devices. Nothing is uploaded.</div>
 </main>
 
-<footer><div class="wrap"><span>PPTX Remote · free and open source</span><span>MIT License · <a href="https://github.com/AidenJeong8/pptx-remote">github.com/AidenJeong8/pptx-remote</a></span></div></footer>
+<main id="app" hidden>
+  <div class="left">
+    <div id="preview"></div>
+    <button id="present">Present</button>
+  </div>
+  <div class="right">
+    <div id="qr"></div>
+    <div id="linkStatus">Connecting…</div>
+    <button class="link" id="copyUrl">Copy link</button>
+  </div>
+</main>
 
 <div id="stage" hidden><div id="stageSlide"></div></div>
 
@@ -248,7 +90,7 @@ const conns = new Set();
 async function openFile(file) {
   if (!file) return;
   if (!/\.pptx$/i.test(file.name)) return dropMsg('That isn\'t a .pptx file. Keynote and Google Slides can export to PowerPoint.', true);
-  dropMsg(`<span class="spinner"></span>Opening ${escapeHtml(file.name)}…`);
+  dropMsg(`Opening ${escapeHtml(file.name)}…`);
   try {
     const buf = await file.arrayBuffer();
     const d = await loadDeck(buf);
@@ -275,32 +117,13 @@ window.addEventListener('drop', (e) => { e.preventDefault(); openFile(e.dataTran
 $('another').onclick = () => $('file').click();
 
 // ---------- Presenter UI ----------
-let thumbObserver;
 function showApp() {
   $('landing').hidden = true;
   $('app').hidden = false;
-  window.scrollTo(0, 0);
+  $('another').hidden = false;
+  $('gh').hidden = true;
   $('deckName').textContent = deckName.replace(/\.pptx$/i, '');
-  $('deckMeta').textContent = `${deck.count} slide${deck.count === 1 ? '' : 's'}`;
-  $('preview').style.aspectRatio = `${deck.width} / ${deck.height}`;
-
-  thumbObserver?.disconnect();
-  thumbObserver = new IntersectionObserver((entries) => {
-    for (const en of entries) {
-      if (!en.isIntersecting || en.target.dataset.done) continue;
-      en.target.dataset.done = '1';
-      deck.render(Number(en.target.dataset.i), en.target.querySelector('.box'), en.target.clientWidth - 4, en.target.clientHeight - 4);
-    }
-  }, { rootMargin: '400px' });
-  $('thumbs').replaceChildren(...Array.from({ length: deck.count }, (_, i) => {
-    const b = document.createElement('div');
-    b.setAttribute('role', 'button'); b.tabIndex = 0;
-    b.className = 'thumb'; b.dataset.i = i; b.style.aspectRatio = `${deck.width} / ${deck.height}`;
-    b.innerHTML = `<div class="box"></div>`;
-    b.onclick = () => go(i);
-    thumbObserver.observe(b);
-    return b;
-  }));
+  $('preview').style.setProperty('--r', deck.width / deck.height);
   update();
 }
 
@@ -308,7 +131,6 @@ function update() {
   if (!deck) return;
   const p = $('preview');
   deck.render(index, p, p.clientWidth, p.clientHeight);
-  [...$('thumbs').children].forEach((b, i) => b.classList.toggle('cur', i === index));
   if (!$('stage').hidden) renderStage();
   broadcast({ t: 'state', i: index, n: deck.count, id: deckId });
 }
@@ -374,18 +196,18 @@ function startPeer() {
       if (++retries > 3) { room = newRoom(); sessionStorage.setItem('pptx-room', room); retries = 0; showQR(); }
       setTimeout(startPeer, 1500);
     } else if (['network', 'server-error', 'socket-error', 'socket-closed'].includes(e.type)) {
-      setLink('Connection problem, retrying…', 'err');
+      setLink('Reconnecting…');
       peer.destroy();
       setTimeout(startPeer, 3000);
     }
   });
 }
 
-function setLink(text, cls) {
+function setLink(text) {
   const n = conns.size;
   const el = $('linkStatus');
-  el.className = cls || (n ? 'on' : '');
-  el.querySelector('span').textContent = text || (n ? `${n === 1 ? 'Phone' : n + ' phones'} connected` : (peer?.open ? 'Waiting for your phone…' : 'Connecting…'));
+  el.className = n && !text ? 'on' : '';
+  el.textContent = text || (n ? 'Connected' : (peer?.open ? 'Scan to connect' : 'Connecting…'));
 }
 
 function remoteUrl() { return new URL('remote.html#' + room, location.href).href; }
@@ -394,9 +216,8 @@ function showQR() {
   qr.addData(remoteUrl());
   qr.make();
   $('qr').innerHTML = qr.createSvgTag({ cellSize: 4, margin: 0, scalable: true });
-  $('remoteUrl').value = remoteUrl();
 }
-$('copyUrl').onclick = () => { navigator.clipboard.writeText(remoteUrl()); $('copyUrl').textContent = 'Copied'; setTimeout(() => ($('copyUrl').textContent = 'Copy'), 1500); };
+$('copyUrl').onclick = () => { navigator.clipboard.writeText(remoteUrl()); $('copyUrl').textContent = 'Copied'; setTimeout(() => ($('copyUrl').textContent = 'Copy link'), 1500); };
 
 function onData(c, d) {
   let msg;

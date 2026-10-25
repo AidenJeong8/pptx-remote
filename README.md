@@ -10,8 +10,8 @@ Present a PowerPoint deck from any computer and control it from your phone.
 
 1. Open the site on the computer you're presenting from and drop in a `.pptx` file.
 2. Scan the QR code with your phone's camera.
-3. Click **Present fullscreen**. Your phone now has Prev/Next buttons, your speaker notes, a
-   next-slide preview, and a grid of slides you can tap to jump to any one.
+3. Click **Present**. Your phone now has back/next buttons, your speaker notes, and a list of
+   slides by title that you can tap to jump to any one.
 
 There's nothing to install and no account. The computer and phone don't need to be on the same
 network.
