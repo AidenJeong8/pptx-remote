@@ -122,8 +122,6 @@
   @keyframes spin { to { transform:rotate(360deg); } }
 
   #stage { position:fixed; inset:0; z-index:100; background:#000; display:flex; align-items:center; justify-content:center; cursor:none; }
-  #stage .count { position:absolute; right:16px; bottom:12px; color:#fff8; font-size:13px; opacity:0; transition:.3s; }
-  #stage:hover .count { opacity:1; }
 
   @media (max-width: 900px) {
     .grid3 { grid-template-columns:1fr; }
@@ -235,7 +233,7 @@
 
 <footer><div class="wrap"><span>PPTX Remote · free and open source</span><span>MIT License · <a href="https://github.com/AidenJeong8/pptx-remote">github.com/AidenJeong8/pptx-remote</a></span></div></footer>
 
-<div id="stage" hidden><div id="stageSlide"></div><div class="count" id="stageCount"></div></div>
+<div id="stage" hidden><div id="stageSlide"></div></div>
 
 <script type="module">
 import { loadDeck } from './js/deck.js';
@@ -325,7 +323,6 @@ function go(i) {
 
 function renderStage() {
   deck.render(index, $('stageSlide'), window.innerWidth, window.innerHeight);
-  $('stageCount').textContent = `${index + 1} / ${deck.count}`;
 }
 
 $('present').onclick = async () => {
