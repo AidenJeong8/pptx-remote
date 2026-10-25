@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0b0d11">
+<title>PPTX Remote · Phone</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%234f8cff'/><path d='M12 9l11 7-11 7z' fill='white'/></svg>">
+<script src="vendor/peerjs.min.js"></script>
+<script src="vendor/jszip.min.js"></script>
+<style>
+  :root { --bg:#0b0d11; --panel:#161a22; --line:#252b36; --text:#eef0f5; --muted:#8e97ab; --accent:#4f8cff; --ok:#3ddc84; --err:#ff6b6b; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  [hidden] { display:none !important; }
+  html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
+  html, body { margin:0; background:var(--bg); color:var(--text); font:15px/1.45 -apple-system, system-ui, sans-serif; }
+  body { padding:env(safe-area-inset-top) 16px calc(env(safe-area-inset-bottom) + 20px); overflow-x:hidden; }
+  header { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:14px 0 10px; }
+  #name { font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:flex; align-items:center; gap:8px; min-width:0; }
+  #dot { flex:none; width:8px; height:8px; border-radius:50%; background:#f5b942; }
+  #dot.on { background:var(--ok); box-shadow:0 0 8px var(--ok); }
+  #dot.err { background:var(--err); }
+  #count { color:var(--muted); font-variant-numeric:tabular-nums; flex:none; }
+  .slide { background:#000; border-radius:10px; overflow:hidden; display:flex; align-items:center; justify-content:center; border:1px solid var(--line); }
+  #current { width:100%; }
+  #nextWrap { display:flex; gap:10px; align-items:center; margin-top:10px; color:var(--muted); font-size:13px; }
+  #next { width:104px; flex:none; border-radius:6px; }
+  .ctrls { display:grid; grid-template-columns:1fr 2fr; gap:10px; margin:14px 0; }
+  .ctrls button { border-radius:16px; font-size:20px; font-weight:600; padding:24px 0; color:#fff; background:var(--panel); border:1px solid var(--line); font-family:inherit; touch-action:manipulation; }
+  .ctrls button.next { background:var(--accent); border-color:var(--accent); }
+  .ctrls button:active { transform:scale(.97); }
+  .ctrls button:disabled { opacity:.35; }
+  h2 { font-size:12px; text-transform:uppercase; letter-spacing:.07em; color:var(--muted); margin:22px 0 8px; font-weight:600; }
+  #notes { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:12px 14px; white-space:pre-wrap; font-size:17px; line-height:1.5; }
+  #notes:empty::before { content:'No speaker notes on this slide'; color:var(--muted); font-size:15px; }
+  #grid { display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; }
+  #grid .t { position:relative; padding:0; border:2px solid transparent; border-radius:8px; background:#000; overflow:hidden; display:flex; align-items:center; justify-content:center; touch-action:manipulation; }
+  #grid .t.cur { border-color:var(--accent); }
+  .center { text-align:center; padding:72px 12px; color:var(--muted); }
+  .center strong { display:block; color:var(--text); font-size:19px; margin-bottom:6px; }
+  .bar { height:6px; background:var(--panel); border-radius:3px; overflow:hidden; margin:18px auto 0; max-width:260px; }
+  .bar i { display:block; height:100%; width:0; background:var(--accent); transition:width .15s; }
+  .spinner { width:28px; height:28px; border:3px solid var(--line); border-top-color:var(--accent); border-radius:50%; animation:spin 1s linear infinite; margin:0 auto 18px; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  .retry { margin-top:18px; background:var(--panel); color:var(--text); border:1px solid var(--line); border-radius:10px; padding:10px 18px; font:inherit; }
+</style>
+</head>
+<body>
+<header><div id="name"><span id="dot"></span><span id="title">PPTX Remote</span></div><div id="count"></div></header>
+
+<div id="status" class="center"><div class="spinner" id="spin"></div><strong id="statusTitle">Connecting…</strong><div id="statusText">Finding your presentation</div><div class="bar" id="bar" hidden><i id="barFill"></i></div><button class="retry" id="retry" hidden>Try again</button></div>
+
+<div id="main" hidden>
+  <div class="slide" id="current"></div>
+  <div id="nextWrap"><div class="slide" id="next"></div><span id="nextLabel"></span></div>
+  <div class="ctrls">
+    <button id="prev">‹ Prev</button>
+    <button id="nextBtn" class="next">Next ›</button>
+  </div>
+  <h2>Notes</h2>
+  <div id="notes"></div>
+  <h2>Jump to slide</h2>
+  <div id="grid"></div>
+</div>
+
+<script type="module">
+import { loadDeck } from './js/deck.js';
+
+const $ = (id) => document.getElementById(id);
+const room = location.hash.slice(1);
+
+let peer, conn, deck = null, deckId = null, index = 0;
+let incoming = null; // { id, name, size, buf, got }
+let rendered = { cur: -1, next: -1 };
+let connectTimer, retryTimer;
+
+function status(title, text, { spin = true, progress = null, retry = false } = {}) {
+  $('main').hidden = true;
+  $('status').hidden = false;
+  $('statusTitle').textContent = title;
+  $('statusText').textContent = text || '';
+  $('spin').hidden = !spin;
+  $('bar').hidden = progress === null;
+  if (progress !== null) $('barFill').style.width = `${Math.round(progress * 100)}%`;
+  $('retry').hidden = !retry;
+}
+function dot(cls) { $('dot').className = cls || ''; }
+const send = (m) => conn?.open && conn.send(JSON.stringify(m));
+
+if (!room) status('No presentation linked', 'Scan the QR code shown on the presenter screen.', { spin: false });
+else connect();
+
+function connect() {
+  clearTimeout(connectTimer);
+  dot();
+  if (!deck) status('Connecting…', 'Finding your presentation');
+  if (!peer || peer.destroyed) {
+    peer = new Peer({ debug: 1 });
+    peer.on('open', openConn);
+    peer.on('disconnected', () => { if (!peer.destroyed) peer.reconnect(); });
+    peer.on('error', (e) => {
+      console.warn('peer', e.type, e);
+      if (e.type === 'peer-unavailable') fail('Presentation not found', 'Make sure the presenter page is still open, then scan the QR code again.');
+      else if (['network', 'server-error', 'socket-error', 'socket-closed', 'disconnected'].includes(e.type)) scheduleRetry();
+    });
+  } else if (peer.open) openConn();
+  // WebRTC can stall silently on restrictive networks.
+  connectTimer = setTimeout(() => { if (!conn?.open) fail('Can\'t reach the presenter', 'Try putting your phone on the same Wi-Fi as the computer.'); }, 20000);
+}
+
+function openConn() {
+  conn?.close();
+  const c = peer.connect('pptxremote-' + room, { reliable: true, serialization: 'raw' });
+  conn = c;
+  let queue = Promise.resolve();
+  c.on('open', () => { clearTimeout(connectTimer); dot('on'); send({ t: 'hello', have: deckId }); });
+  // Keep messages in order even when a chunk arrives as a Blob and needs async reading.
+  c.on('data', (d) => { queue = queue.then(() => onData(d)).catch((e) => console.error(e)); });
+  c.on('close', () => { if (conn === c) { dot('err'); scheduleRetry(); } });
+  c.on('error', (e) => { console.warn('conn', e); if (conn === c) scheduleRetry(); });
+}
+
+function scheduleRetry() {
+  clearTimeout(retryTimer);
+  if (!deck) status('Reconnecting…', '');
+  retryTimer = setTimeout(connect, 1500);
+}
+function fail(title, text) {
+  clearTimeout(connectTimer);
+  dot('err');
+  if (deck) return scheduleRetry();
+  status(title, text, { spin: false, retry: true });
+}
+$('retry').onclick = () => { peer?.destroy(); peer = null; connect(); };
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && room && !conn?.open) connect(); });
+
+async function onData(d) {
+  if (typeof d !== 'string') {
+    if (!incoming) return;
+    const bytes = d instanceof ArrayBuffer ? new Uint8Array(d) : ArrayBuffer.isView(d) ? new Uint8Array(d.buffer, d.byteOffset, d.byteLength) : new Uint8Array(await d.arrayBuffer());
+    incoming.buf.set(bytes, incoming.got);
+    incoming.got += bytes.byteLength;
+    status('Loading slides…', incoming.name, { progress: incoming.got / incoming.size });
+    if (incoming.got >= incoming.size) await finishDeck();
+    return;
+  }
+  const msg = JSON.parse(d);
+  if (msg.t === 'nodeck') status('Connected', 'Drop a .pptx file on the presenter page to start.', { spin: false });
+  else if (msg.t === 'deck') {
+    incoming = { id: msg.id, name: msg.name, size: msg.size, buf: new Uint8Array(msg.size), got: 0 };
+    status('Loading slides…', msg.name, { progress: 0 });
+    $('title').textContent = msg.name.replace(/\.pptx$/i, '');
+  } else if (msg.t === 'state') {
+    index = msg.i;
+    if (deck && msg.id === deckId) show();
+  }
+}
+
+async function finishDeck() {
+  const { id, buf } = incoming;
+  incoming = null;
+  status('Preparing slides…', '');
+  deck?.destroy();
+  deck = await loadDeck(buf.buffer);
+  deckId = id;
+  rendered = { cur: -1, next: -1 };
+  buildGrid();
+  show();
+}
+
+let gridObserver;
+function buildGrid() {
+  gridObserver?.disconnect();
+  gridObserver = new IntersectionObserver((entries) => {
+    for (const en of entries) {
+      if (!en.isIntersecting || en.target.dataset.done) continue;
+      en.target.dataset.done = '1';
+      deck.render(Number(en.target.dataset.i), en.target.querySelector('div'), en.target.clientWidth - 4, en.target.clientHeight - 4);
+    }
+  }, { rootMargin: '300px' });
+  $('grid').replaceChildren(...Array.from({ length: deck.count }, (_, i) => {
+    const b = document.createElement('div');
+    b.setAttribute('role', 'button'); b.tabIndex = 0;
+    b.className = 't'; b.dataset.i = i;
+    b.style.aspectRatio = `${deck.width} / ${deck.height}`;
+    b.innerHTML = `<div></div>`;
+    b.onclick = () => { buzz(); send({ t: 'go', i }); };
+    gridObserver.observe(b);
+    return b;
+  }));
+}
+
+function show() {
+  $('status').hidden = true;
+  $('main').hidden = false;
+  index = Math.max(0, Math.min(deck.count - 1, index));
+  $('count').textContent = `${index + 1} / ${deck.count}`;
+  const ratio = `${deck.width} / ${deck.height}`;
+  const cur = $('current');
+  cur.style.aspectRatio = ratio;
+  if (rendered.cur !== index) { deck.render(index, cur, cur.clientWidth - 2, cur.clientWidth * deck.height / deck.width); rendered.cur = index; }
+  const hasNext = index + 1 < deck.count;
+  $('nextWrap').style.visibility = hasNext ? 'visible' : 'hidden';
+  const nx = $('next');
+  nx.style.aspectRatio = ratio;
+  if (hasNext && rendered.next !== index + 1) { deck.render(index + 1, nx, 102, 102 * deck.height / deck.width); rendered.next = index + 1; }
+  $('nextLabel').textContent = hasNext ? `Next: slide ${index + 2}` : '';
+  $('notes').textContent = deck.notes[index] || '';
+  $('prev').disabled = index === 0;
+  $('nextBtn').disabled = index === deck.count - 1;
+  [...$('grid').children].forEach((b, i) => b.classList.toggle('cur', i === index));
+  keepAwake();
+}
+
+window.addEventListener('resize', () => { if (deck) { rendered = { cur: -1, next: -1 }; show(); } });
+
+function buzz() { navigator.vibrate?.(10); }
+$('prev').onclick = () => { buzz(); send({ t: 'step', d: -1 }); };
+$('nextBtn').onclick = () => { buzz(); send({ t: 'step', d: 1 }); };
+
+// Keep the phone screen on while presenting.
+let wakeLock = null;
+async function keepAwake() {
+  if (wakeLock || !('wakeLock' in navigator) || document.visibilityState !== 'visible') return;
+  try { wakeLock = await navigator.wakeLock.request('screen'); wakeLock.addEventListener('release', () => (wakeLock = null)); } catch {}
+}
+document.addEventListener('click', keepAwake);
+</script>
+</body>
+</html>

@@ -3,94 +3,87 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>PPTX Remote — present from your Mac, control from your phone</title>
-<meta name="description" content="Drop a PowerPoint file on your Mac, present it fullscreen, and control it from your phone. Jump to any slide, read your speaker notes. No app to install.">
+<title>PPTX Remote — present a .pptx, control it from your phone</title>
+<meta name="description" content="Open the site, drop in a PowerPoint file, scan the QR code, and control your slides from your phone. Nothing to install, nothing uploaded.">
 <meta property="og:title" content="PPTX Remote">
-<meta property="og:description" content="Present a .pptx fullscreen on your Mac. Control it from your phone.">
-<meta property="og:image" content="img/presenter.png">
+<meta property="og:description" content="Drop in a .pptx, scan a QR code, control the slideshow from your phone.">
+<meta property="og:image" content="https://aidenjeong8.github.io/pptx-remote/img/presenter.png">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%234f8cff'/><path d='M12 9l11 7-11 7z' fill='white'/></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="vendor/peerjs.min.js"></script>
+<script src="vendor/jszip.min.js"></script>
+<script src="vendor/qrcode.js"></script>
 <style>
   :root {
     --bg:#0b0d11; --bg2:#11141a; --panel:#161a22; --line:#252b36; --text:#eef0f5; --muted:#8e97ab;
-    --accent:#4f8cff; --accent2:#8b5cf6; --ok:#3ddc84;
+    --accent:#4f8cff; --accent2:#8b5cf6; --ok:#3ddc84; --err:#ff6b6b;
   }
   * { box-sizing:border-box; }
-  html { scroll-behavior:smooth; }
+  html { scroll-behavior:smooth; -webkit-text-size-adjust:100%; text-size-adjust:100%; }
   body { margin:0; background:var(--bg); color:var(--text); font:16px/1.6 Inter, -apple-system, system-ui, sans-serif; -webkit-font-smoothing:antialiased; overflow-x:hidden; }
   a { color:inherit; }
+  [hidden] { display:none !important; }
   .wrap { max-width:1120px; margin:0 auto; padding:0 24px; }
-  code, pre { font-family:"JetBrains Mono", ui-monospace, monospace; }
 
   nav { position:sticky; top:0; z-index:10; backdrop-filter:blur(12px); background:#0b0d11cc; border-bottom:1px solid #ffffff0d; }
   nav .wrap { display:flex; align-items:center; justify-content:space-between; height:60px; }
   .logo { display:flex; align-items:center; gap:10px; font-weight:700; letter-spacing:-.01em; text-decoration:none; }
-  .logo i { width:26px; height:26px; border-radius:7px; background:linear-gradient(135deg, var(--accent), var(--accent2)); display:grid; place-items:center; font-style:normal; font-size:13px; }
+  .logo i { width:26px; height:26px; border-radius:7px; background:linear-gradient(135deg, var(--accent), var(--accent2)); display:grid; place-items:center; font-style:normal; font-size:12px; }
   nav .links { display:flex; gap:22px; align-items:center; font-size:14px; color:var(--muted); }
   nav .links a { text-decoration:none; }
   nav .links a:hover { color:var(--text); }
-  .btn { display:inline-flex; align-items:center; gap:8px; padding:12px 20px; border-radius:12px; font-weight:600; font-size:15px; text-decoration:none; transition:.15s; border:1px solid transparent; }
+  .btn { display:inline-flex; align-items:center; justify-content:center; gap:8px; padding:12px 20px; border-radius:12px; font:600 15px Inter, system-ui, sans-serif; text-decoration:none; transition:.15s; border:1px solid transparent; cursor:pointer; }
   .btn.primary { background:var(--accent); color:#fff; }
-  .btn.primary:hover { background:#3d7bf0; transform:translateY(-1px); }
+  .btn.primary:hover { background:#3d7bf0; }
+  .btn.primary:disabled { opacity:.45; cursor:default; }
   .btn.ghost { border-color:var(--line); color:var(--text); background:var(--panel); }
   .btn.ghost:hover { border-color:#3a4252; }
   .btn.sm { padding:7px 14px; font-size:13px; border-radius:9px; }
+  .btn.lg { padding:16px 26px; font-size:17px; border-radius:14px; }
 
-  .hero { position:relative; padding:88px 0 40px; text-align:center; }
-  .hero::before { content:""; position:absolute; inset:-200px 0 auto; height:700px; background:radial-gradient(600px 300px at 50% 30%, #4f8cff33, transparent 70%), radial-gradient(500px 260px at 70% 50%, #8b5cf622, transparent 70%); pointer-events:none; }
+  /* Landing */
+  .hero { position:relative; padding:72px 0 24px; text-align:center; }
+  .hero::before { content:""; position:absolute; inset:-200px 0 auto; height:760px; background:radial-gradient(600px 300px at 50% 30%, #4f8cff33, transparent 70%), radial-gradient(500px 260px at 70% 55%, #8b5cf622, transparent 70%); pointer-events:none; }
   .pill { position:relative; display:inline-flex; gap:8px; align-items:center; font-size:13px; color:var(--muted); border:1px solid var(--line); background:var(--panel); padding:6px 12px; border-radius:999px; }
   .pill b { width:7px; height:7px; border-radius:50%; background:var(--ok); box-shadow:0 0 10px var(--ok); }
-  h1 { position:relative; font-size:clamp(40px, 7vw, 72px); line-height:1.03; letter-spacing:-.035em; margin:22px auto 18px; max-width:1000px; font-weight:800; }
+  h1 { position:relative; font-size:clamp(38px, 6.6vw, 68px); line-height:1.04; letter-spacing:-.035em; margin:20px auto 16px; max-width:1000px; font-weight:800; }
   h1 span { background:linear-gradient(90deg, #7fb0ff, #b79cff); -webkit-background-clip:text; background-clip:text; color:transparent; }
-  .lede { position:relative; font-size:clamp(17px, 2.2vw, 20px); color:var(--muted); max-width:620px; margin:0 auto 32px; }
-  .cta { position:relative; display:flex; gap:12px; justify-content:center; flex-wrap:wrap; }
+  .lede { position:relative; font-size:clamp(17px, 2.2vw, 20px); color:var(--muted); max-width:620px; margin:0 auto 36px; }
 
-  .showcase { position:relative; margin:64px auto 0; max-width:1040px; height:620px; }
+  #drop { position:relative; display:block; max-width:760px; margin:0 auto; border:2px dashed #34405a; border-radius:22px; padding:44px 24px; cursor:pointer; background:linear-gradient(180deg, #161b26cc, #12161ecc); transition:.15s; }
+  #drop:hover, #drop.over { border-color:var(--accent); background:#18223a; }
+  #drop .ic { width:56px; height:56px; margin:0 auto 14px; border-radius:16px; background:#4f8cff22; color:#8fb8ff; display:grid; place-items:center; }
+  #drop strong { display:block; font-size:21px; letter-spacing:-.01em; }
+  #drop .hint { color:var(--muted); font-size:15px; margin-top:4px; }
+  #drop .btn { margin-top:20px; pointer-events:none; }
+  #dropStatus { min-height:24px; margin-top:16px; color:var(--muted); font-size:15px; }
+  #dropStatus.err { color:var(--err); }
+  .privacy { position:relative; margin-top:14px; font-size:13px; color:var(--muted); }
+
+  .demo { position:relative; margin:72px auto 0; max-width:1040px; height:560px; }
   .laptop { position:absolute; left:0; top:0; width:82%; }
   .laptop .screen { background:#000; border:10px solid #1c2029; border-radius:18px 18px 4px 4px; overflow:hidden; box-shadow:0 40px 120px -20px #000, 0 0 0 1px #2a2f3a; }
   .laptop .screen img { display:block; width:100%; }
   .laptop .base { height:16px; margin:0 -5%; background:linear-gradient(#2a2f3a, #161a22); border-radius:0 0 18px 18px; }
-  .phone { position:absolute; right:0; top:70px; width:250px; border-radius:38px; background:#000; padding:10px; box-shadow:0 40px 100px -10px #000, 0 0 0 1px #2a2f3a, inset 0 0 0 2px #22262f; }
+  .phone { position:absolute; right:0; top:60px; width:240px; border-radius:38px; background:#000; padding:10px; box-shadow:0 40px 100px -10px #000, 0 0 0 1px #2a2f3a, inset 0 0 0 2px #22262f; }
   .phone img { display:block; width:100%; border-radius:30px; }
-  .beam { position:absolute; right:230px; top:250px; width:120px; height:2px; background:linear-gradient(90deg, transparent, var(--accent)); animation:beam 2.2s ease-in-out infinite; transform-origin:right; }
-  @keyframes beam { 0%,100% { opacity:.2; transform:scaleX(.4); } 50% { opacity:1; transform:scaleX(1); } }
 
   section { padding:96px 0; }
   .eyebrow { color:var(--accent); font-weight:600; font-size:13px; letter-spacing:.08em; text-transform:uppercase; }
   h2 { font-size:clamp(30px, 4.4vw, 44px); letter-spacing:-.025em; line-height:1.1; margin:10px 0 16px; }
   .sub { color:var(--muted); max-width:620px; font-size:18px; }
-
-  .features { display:grid; grid-template-columns:repeat(3, 1fr); gap:16px; margin-top:48px; }
+  .grid3 { display:grid; grid-template-columns:repeat(3, 1fr); gap:16px; margin-top:48px; }
   .f { background:var(--panel); border:1px solid var(--line); border-radius:18px; padding:26px; }
   .f .ic { width:40px; height:40px; border-radius:11px; display:grid; place-items:center; background:#4f8cff1a; color:#7fb0ff; margin-bottom:16px; }
   .f h3 { margin:0 0 6px; font-size:17px; letter-spacing:-.01em; }
   .f p { margin:0; color:var(--muted); font-size:15px; }
-
-  .steps { display:grid; grid-template-columns:repeat(3, 1fr); gap:16px; margin-top:48px; counter-reset:s; }
+  .steps { counter-reset:s; }
   .step { position:relative; padding:28px; border-radius:18px; background:linear-gradient(180deg, var(--panel), var(--bg2)); border:1px solid var(--line); }
   .step::before { counter-increment:s; content:counter(s); display:grid; place-items:center; width:32px; height:32px; border-radius:50%; background:var(--accent); font-weight:700; font-size:14px; margin-bottom:16px; }
   .step h3 { margin:0 0 6px; font-size:18px; }
   .step p { margin:0; color:var(--muted); font-size:15px; }
-
-  .term { margin-top:40px; background:#07090c; border:1px solid var(--line); border-radius:16px; overflow:hidden; max-width:760px; }
-  .term .bar { display:flex; align-items:center; gap:7px; padding:12px 16px; border-bottom:1px solid var(--line); background:var(--panel); }
-  .term .bar i { width:11px; height:11px; border-radius:50%; background:#3a404d; }
-  .term .bar i:nth-child(1) { background:#ff5f57; } .term .bar i:nth-child(2) { background:#febc2e; } .term .bar i:nth-child(3) { background:#28c840; }
-  .term .bar span { margin-left:auto; font-size:12px; color:var(--muted); }
-  .term pre { margin:0; padding:20px 22px; font-size:14px; line-height:1.8; overflow-x:auto; color:#c9d1e0; }
-  .term .p { color:var(--ok); user-select:none; } .term .c { color:#5d6678; } .term .o { color:#7fb0ff; }
-  .copy { margin-left:12px; background:none; border:1px solid var(--line); color:var(--muted); border-radius:7px; font:inherit; font-size:12px; padding:3px 9px; cursor:pointer; }
-  .copy:hover { color:var(--text); }
-
-  .arch { display:grid; grid-template-columns:1fr 1fr; gap:40px; align-items:center; margin-top:16px; }
-  .diagram { background:var(--panel); border:1px solid var(--line); border-radius:18px; padding:28px; }
-  .diagram svg { width:100%; height:auto; display:block; }
-  .facts { display:grid; gap:14px; margin-top:24px; }
-  .fact { display:flex; gap:14px; }
-  .fact b { flex:none; width:22px; height:22px; border-radius:50%; background:#3ddc841a; color:var(--ok); display:grid; place-items:center; font-size:12px; margin-top:2px; }
-  .fact p { margin:0; color:var(--muted); } .fact strong { color:var(--text); font-weight:600; }
-
   .faq { max-width:760px; margin-top:40px; }
   details { border-bottom:1px solid var(--line); padding:18px 0; }
   summary { cursor:pointer; font-weight:600; list-style:none; display:flex; justify-content:space-between; gap:16px; }
@@ -98,19 +91,47 @@
   summary::after { content:"+"; color:var(--muted); font-size:20px; line-height:1; transition:.2s; }
   details[open] summary::after { transform:rotate(45deg); }
   details p { color:var(--muted); margin:10px 0 0; }
-
-  .final { text-align:center; padding:100px 0 120px; }
-  .final .box { background:radial-gradient(500px 200px at 50% 0%, #4f8cff2a, transparent), var(--panel); border:1px solid var(--line); border-radius:24px; padding:64px 24px; }
   footer { border-top:1px solid var(--line); padding:28px 0; color:var(--muted); font-size:14px; }
   footer .wrap { display:flex; justify-content:space-between; gap:16px; flex-wrap:wrap; }
 
+  /* Presenter app */
+  #app { padding:32px 0 80px; }
+  .apphead { display:flex; align-items:flex-end; justify-content:space-between; gap:16px; flex-wrap:wrap; margin-bottom:24px; }
+  .apphead h2 { font-size:28px; margin:4px 0 0; word-break:break-word; }
+  .apphead .meta { color:var(--muted); font-size:15px; }
+  .appgrid { display:grid; grid-template-columns:1fr 300px; gap:20px; align-items:start; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:18px; padding:20px; }
+  #preview { aspect-ratio:16/9; background:#000; border-radius:12px; overflow:hidden; display:flex; align-items:center; justify-content:center; }
+  .presentRow { display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-top:16px; }
+  .presentRow .hint { color:var(--muted); font-size:14px; }
+  .remote { text-align:center; position:sticky; top:84px; }
+  .remote h3 { margin:0 0 4px; font-size:16px; }
+  .remote .hint { color:var(--muted); font-size:13px; }
+  #qr { background:#fff; border-radius:14px; padding:12px; width:220px; height:220px; margin:14px auto; }
+  #qr svg { width:100%; height:100%; display:block; }
+  #linkStatus { display:inline-flex; align-items:center; gap:8px; font-size:14px; font-weight:500; padding:6px 12px; border-radius:999px; background:#ffffff08; border:1px solid var(--line); }
+  #linkStatus i { width:8px; height:8px; border-radius:50%; background:#f5b942; }
+  #linkStatus.on i { background:var(--ok); box-shadow:0 0 8px var(--ok); }
+  #linkStatus.err i { background:var(--err); }
+  .copyRow { display:flex; gap:6px; margin-top:12px; }
+  .copyRow input { flex:1; min-width:0; background:#0b0d11; border:1px solid var(--line); border-radius:9px; color:var(--muted); font:12px ui-monospace, monospace; padding:7px 9px; }
+  #thumbs { display:grid; grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); gap:12px; margin-top:20px; }
+  .thumb { position:relative; padding:0; border:2px solid transparent; border-radius:10px; overflow:hidden; background:#000; cursor:pointer; aspect-ratio:16/9; display:flex; align-items:center; justify-content:center; }
+  .thumb.cur { border-color:var(--accent); }
+  .spinner { width:18px; height:18px; border:3px solid var(--line); border-top-color:var(--accent); border-radius:50%; animation:spin 1s linear infinite; display:inline-block; vertical-align:-4px; margin-right:8px; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+
+  #stage { position:fixed; inset:0; z-index:100; background:#000; display:flex; align-items:center; justify-content:center; cursor:none; }
+  #stage .count { position:absolute; right:16px; bottom:12px; color:#fff8; font-size:13px; opacity:0; transition:.3s; }
+  #stage:hover .count { opacity:1; }
+
   @media (max-width: 900px) {
-    .features, .steps { grid-template-columns:1fr; }
-    .arch { grid-template-columns:1fr; }
-    .showcase { height:auto; padding-bottom:20px; }
+    .grid3 { grid-template-columns:1fr; }
+    .appgrid { grid-template-columns:1fr; }
+    .remote { position:static; }
+    .demo { height:auto; }
     .laptop { position:relative; width:100%; }
-    .phone { position:relative; top:auto; right:auto; width:200px; margin:-60px 12px 0 auto; }
-    .beam { display:none; }
+    .phone { position:relative; top:auto; right:auto; width:180px; margin:-70px 8px 0 auto; }
     nav .links a:not(.btn) { display:none; }
   }
 </style>
@@ -118,142 +139,301 @@
 <body>
 <nav>
   <div class="wrap">
-    <a class="logo" href="#"><i>▶</i>PPTX Remote</a>
+    <a class="logo" href="./"><i>▶</i>PPTX Remote</a>
     <div class="links">
-      <a href="#features">Features</a>
-      <a href="#start">Get started</a>
       <a href="#how">How it works</a>
+      <a href="#faq">FAQ</a>
       <a class="btn ghost sm" href="https://github.com/AidenJeong8/pptx-remote">GitHub</a>
     </div>
   </div>
 </nav>
 
-<header class="hero">
-  <div class="wrap">
-    <div class="pill"><b></b>Free · Open source · No app to install</div>
-    <h1>Present from your Mac.<br><span>Control it from your phone.</span></h1>
-    <p class="lede">Drop in a PowerPoint file and it plays fullscreen on your Mac. Your phone becomes the clicker: next, back, jump to any slide, and your speaker notes in your hand.</p>
-    <div class="cta">
-      <a class="btn primary" href="#start">Get started in 1 minute</a>
-      <a class="btn ghost" href="https://github.com/AidenJeong8/pptx-remote">View on GitHub</a>
-    </div>
+<div id="landing">
+  <header class="hero">
+    <div class="wrap">
+      <div class="pill"><b></b>Free · Nothing to install · Nothing uploaded</div>
+      <h1>Present your slides.<br><span>Control them from your phone.</span></h1>
+      <p class="lede">Drop in a PowerPoint file, scan the QR code, and your phone becomes the clicker: next, back, jump to any slide, with your speaker notes in your hand.</p>
 
-    <div class="showcase">
-      <div class="laptop">
-        <div class="screen"><img src="img/presenter.png" alt="Presenter page on the Mac with a loaded deck and a QR code for the phone remote"></div>
-        <div class="base"></div>
+      <label id="drop">
+        <input type="file" id="file" accept=".pptx,application/vnd.openxmlformats-officedocument.presentationml.presentation" hidden>
+        <div class="ic"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4m0 0l-5 5m5-5l5 5"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg></div>
+        <strong>Drop your .pptx here</strong>
+        <div class="hint">or click to choose a file</div>
+        <span class="btn primary lg">Choose a PowerPoint file</span>
+        <div id="dropStatus"></div>
+      </label>
+      <div class="privacy">🔒 Your file stays in your browser. It goes straight to your phone, and never to a server.</div>
+
+      <div class="demo">
+        <div class="laptop"><div class="screen"><img src="img/presenter.png" alt="The presenter page with a loaded deck and a QR code"></div><div class="base"></div></div>
+        <div class="phone"><img src="img/remote.png" alt="The phone remote with the current slide, Prev/Next buttons, notes and a slide grid"></div>
       </div>
-      <div class="beam"></div>
-      <div class="phone"><img src="img/remote.png" alt="Phone remote showing the current slide, next slide, Prev/Next buttons, notes and a slide grid"></div>
     </div>
-  </div>
-</header>
+  </header>
 
-<section id="features">
-  <div class="wrap">
-    <div class="eyebrow">Features</div>
-    <h2>Everything a clicker does,<br>and a few things it can't.</h2>
-    <p class="sub">The phone remote is a web page, so there's nothing to install and nothing to pair. Scan the QR code and you're in control.</p>
-    <div class="features">
-      <div class="f"><div class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></div><h3>Jump to any slide</h3><p>Every slide appears as a thumbnail on your phone. Tap one and the Mac goes straight there.</p></div>
-      <div class="f"><div class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg></div><h3>Speaker notes</h3><p>The notes from your .pptx show on the phone under the current slide. Only you can see them.</p></div>
-      <div class="f"><div class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg></div><h3>Next-slide preview</h3><p>See what's coming up so you can lead into it smoothly.</p></div>
-      <div class="f"><div class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg></div><h3>Real fullscreen</h3><p>One click puts the deck in fullscreen on the Mac. The cursor hides, and arrow keys and space still work.</p></div>
-      <div class="f"><div class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2l3 7h7l-5.5 4.5L18 21l-6-4-6 4 1.5-7.5L2 9h7z"/></svg></div><h3>Looks like PowerPoint</h3><p>Keynote renders the slides, so fonts, layouts and images come out the way you designed them.</p></div>
-      <div class="f"><div class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12.55a11 11 0 0 1 14.08 0M1.42 9a16 16 0 0 1 21.16 0M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01"/></svg></div><h3>Stays on your Wi-Fi</h3><p>Your slides never leave your computer. The Mac and phone talk to each other directly over your local network.</p></div>
-    </div>
-  </div>
-</section>
-
-<section id="start" style="background:var(--bg2);border-block:1px solid var(--line)">
-  <div class="wrap">
-    <div class="eyebrow">Get started</div>
-    <h2>Up and running in a minute.</h2>
-    <p class="sub">You need a Mac with Node.js and Keynote (Keynote comes free with macOS). There are no packages to install.</p>
-    <div class="term">
-      <div class="bar"><i></i><i></i><i></i><span>Terminal <button class="copy" id="copy">Copy</button></span></div>
-<pre id="cmd"><span class="p">$ </span>git clone https://github.com/AidenJeong8/pptx-remote.git
-<span class="p">$ </span>cd pptx-remote
-<span class="p">$ </span>npm start
-<span class="o">Presenter (open on this Mac):  http://localhost:3000/
-Remote (open on your phone):   http://192.168.x.x:3000/remote</span></pre>
-    </div>
-    <div class="steps">
-      <div class="step"><h3>Drop your deck</h3><p>Open <code>localhost:3000</code> on your Mac and drag in a .pptx file. Conversion takes a few seconds.</p></div>
-      <div class="step"><h3>Scan the QR code</h3><p>Point your phone's camera at the code on the page. Your phone needs to be on the same Wi-Fi as the Mac.</p></div>
-      <div class="step"><h3>Present</h3><p>Click <strong>Present fullscreen</strong> on the Mac. From then on, everything happens from your phone.</p></div>
-    </div>
-  </div>
-</section>
-
-<section id="how">
-  <div class="wrap arch">
-    <div>
+  <section id="how">
+    <div class="wrap">
       <div class="eyebrow">How it works</div>
-      <h2>A tiny server on your Mac.</h2>
-      <p class="sub">A single Node.js file with no dependencies. It asks Keynote to turn your deck into slide images, then keeps every connected screen on the same slide.</p>
-      <div class="facts">
-        <div class="fact"><b>✓</b><p><strong>Keynote does the rendering.</strong> An AppleScript opens the .pptx in Keynote and exports each slide as a PNG, along with your speaker notes.</p></div>
-        <div class="fact"><b>✓</b><p><strong>Instant sync.</strong> Screens get updates over Server-Sent Events. When any screen changes the slide, the others follow almost instantly.</p></div>
-        <div class="fact"><b>✓</b><p><strong>Two-way control.</strong> Use the Mac keyboard and the phone together. They always stay in step.</p></div>
+      <h2>Three steps. About ten seconds.</h2>
+      <div class="grid3 steps">
+        <div class="step"><h3>Drop your deck</h3><p>Open this page on the computer you're presenting from and drop in a .pptx. Your slides appear right away.</p></div>
+        <div class="step"><h3>Scan the QR code</h3><p>Point your phone's camera at the code. The remote opens in your phone's browser, so there's no app to download.</p></div>
+        <div class="step"><h3>Present</h3><p>Click <strong>Present fullscreen</strong>. From then on, everything happens from your phone.</p></div>
+      </div>
+      <div class="grid3">
+        <div class="f"><div class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></div><h3>Jump to any slide</h3><p>Every slide is a thumbnail on your phone. Tap one and the big screen goes straight there.</p></div>
+        <div class="f"><div class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg></div><h3>Speaker notes</h3><p>The notes from your .pptx show under the current slide. Only you can see them.</p></div>
+        <div class="f"><div class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></div><h3>Private by design</h3><p>The deck goes directly from your computer to your phone over an encrypted connection. It's never uploaded anywhere.</p></div>
       </div>
     </div>
-    <div class="diagram">
-      <svg viewBox="0 0 440 340" fill="none" font-family="Inter, sans-serif">
-        <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#4f8cff"/></marker></defs>
-        <rect x="140" y="20" width="160" height="70" rx="14" fill="#1d2330" stroke="#2f3746"/>
-        <text x="220" y="50" text-anchor="middle" fill="#eef0f5" font-size="15" font-weight="600">Keynote</text>
-        <text x="220" y="70" text-anchor="middle" fill="#8e97ab" font-size="12">.pptx → PNG + notes</text>
-        <rect x="120" y="140" width="200" height="70" rx="14" fill="#4f8cff22" stroke="#4f8cff"/>
-        <text x="220" y="170" text-anchor="middle" fill="#eef0f5" font-size="15" font-weight="600">server.js</text>
-        <text x="220" y="190" text-anchor="middle" fill="#8e97ab" font-size="12">holds the current slide</text>
-        <rect x="10" y="260" width="170" height="64" rx="14" fill="#1d2330" stroke="#2f3746"/>
-        <text x="95" y="288" text-anchor="middle" fill="#eef0f5" font-size="15" font-weight="600">Mac · fullscreen</text>
-        <text x="95" y="307" text-anchor="middle" fill="#8e97ab" font-size="12">localhost:3000</text>
-        <rect x="260" y="260" width="170" height="64" rx="14" fill="#1d2330" stroke="#2f3746"/>
-        <text x="345" y="288" text-anchor="middle" fill="#eef0f5" font-size="15" font-weight="600">Phone · remote</text>
-        <text x="345" y="307" text-anchor="middle" fill="#8e97ab" font-size="12">/remote over Wi-Fi</text>
-        <path d="M220 92V136" stroke="#4f8cff" stroke-width="2" marker-end="url(#a)"/>
-        <path d="M170 212L110 256" stroke="#4f8cff" stroke-width="2" marker-end="url(#a)"/>
-        <path d="M325 256L270 214" stroke="#8b5cf6" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#a)"/>
-        <text x="345" y="232" fill="#b79cff" font-size="11">tap: go to slide</text>
-        <text x="58" y="232" fill="#7fb0ff" font-size="11">live updates</text>
-      </svg>
-    </div>
-  </div>
-</section>
+  </section>
 
-<section style="padding-top:0">
+  <section id="faq" style="padding-top:0">
+    <div class="wrap">
+      <div class="eyebrow">FAQ</div>
+      <h2>Good to know</h2>
+      <div class="faq">
+        <details><summary>Does my phone need to be on the same Wi-Fi?</summary><p>No, it usually connects over any network. If it can't, which can happen on some cellular or locked-down office networks, put both devices on the same Wi-Fi and it'll connect.</p></details>
+        <details><summary>Do animations and transitions work?</summary><p>No. Each slide shows in its finished state, with all builds already applied.</p></details>
+        <details><summary>My fonts look a little different</summary><p>Slides are drawn by your browser, so fonts that aren't embedded in the file and aren't installed on your computer get replaced with similar ones.</p></details>
+        <details><summary>Why do I have to click on the computer to go fullscreen?</summary><p>Browsers only let a page go fullscreen after someone clicks on that computer. Click once, and the phone handles everything after that.</p></details>
+        <details><summary>Can I use Keynote or Google Slides?</summary><p>Yes. Export to PowerPoint first: in Keynote, File → Export To → PowerPoint; in Google Slides, File → Download → Microsoft PowerPoint (.pptx).</p></details>
+        <details><summary>Does it work on Windows?</summary><p>Yes. The presenter works in any modern browser, on a Mac, a Windows PC or a Chromebook.</p></details>
+      </div>
+    </div>
+  </section>
+</div>
+
+<main id="app" hidden>
   <div class="wrap">
-    <div class="eyebrow">FAQ</div>
-    <h2>Good to know</h2>
-    <div class="faq">
-      <details><summary>Do animations and transitions work?</summary><p>No. Each slide shows as a single image, exactly as it looks once all its builds have finished.</p></details>
-      <details><summary>Why does it need a Mac?</summary><p>Rendering PowerPoint files accurately is hard. Keynote, which comes free with every Mac, already does it very well, so PPTX Remote uses it to draw the slides.</p></details>
-      <details><summary>macOS asked whether Terminal can control Keynote</summary><p>That's expected the first time you convert a deck. Click OK. It's how the server tells Keynote to export your slides.</p></details>
-      <details><summary>My phone can't connect</summary><p>Make sure your phone is on the same Wi-Fi as the Mac and not on cellular data. Some public and guest networks block devices from reaching each other; a phone hotspot works as a fallback.</p></details>
-      <details><summary>Why do I have to click on the Mac to go fullscreen?</summary><p>Browsers only let a page go fullscreen after someone clicks on that computer. Click once on the Mac, and the phone handles everything after that.</p></details>
+    <div class="apphead">
+      <div><div class="meta" id="deckMeta"></div><h2 id="deckName"></h2></div>
+      <button class="btn ghost sm" id="another">Open a different file</button>
+    </div>
+    <div class="appgrid">
+      <div>
+        <div class="card">
+          <div id="preview"></div>
+          <div class="presentRow">
+            <button class="btn primary lg" id="present">▶ Present fullscreen</button>
+            <span class="hint">← → or space to move · Esc to exit</span>
+          </div>
+        </div>
+        <div id="thumbs"></div>
+      </div>
+      <aside class="card remote">
+        <h3>Phone remote</h3>
+        <div class="hint">Scan with your phone's camera</div>
+        <div id="qr"></div>
+        <div id="linkStatus"><i></i><span>Connecting…</span></div>
+        <div class="copyRow"><input id="remoteUrl" readonly><button class="btn ghost sm" id="copyUrl">Copy</button></div>
+      </aside>
     </div>
   </div>
-</section>
+</main>
 
-<section class="final">
-  <div class="wrap">
-    <div class="box">
-      <h2>Leave the clicker at home.</h2>
-      <p class="sub" style="margin:0 auto 28px">Free and open source. One file, no dependencies.</p>
-      <div class="cta"><a class="btn primary" href="#start">Get started</a><a class="btn ghost" href="https://github.com/AidenJeong8/pptx-remote">Star on GitHub</a></div>
-    </div>
-  </div>
-</section>
+<footer><div class="wrap"><span>PPTX Remote · free and open source</span><span>MIT License · <a href="https://github.com/AidenJeong8/pptx-remote">github.com/AidenJeong8/pptx-remote</a></span></div></footer>
 
-<footer><div class="wrap"><span>PPTX Remote</span><span>MIT License · <a href="https://github.com/AidenJeong8/pptx-remote">github.com/AidenJeong8/pptx-remote</a></span></div></footer>
+<div id="stage" hidden><div id="stageSlide"></div><div class="count" id="stageCount"></div></div>
 
-<script>
-document.getElementById('copy').onclick = (e) => {
-  navigator.clipboard.writeText('git clone https://github.com/AidenJeong8/pptx-remote.git\ncd pptx-remote\nnpm start');
-  e.target.textContent = 'Copied'; setTimeout(() => (e.target.textContent = 'Copy'), 1500);
+<script type="module">
+import { loadDeck } from './js/deck.js';
+
+const $ = (id) => document.getElementById(id);
+const CHUNK = 16 * 1024;
+
+let deck = null, deckBuf = null, deckId = null, deckName = '', index = 0;
+const conns = new Set();
+
+// ---------- Loading a deck ----------
+async function openFile(file) {
+  if (!file) return;
+  if (!/\.pptx$/i.test(file.name)) return dropMsg('That isn\'t a .pptx file. Keynote and Google Slides can export to PowerPoint.', true);
+  dropMsg(`<span class="spinner"></span>Opening ${escapeHtml(file.name)}…`);
+  try {
+    const buf = await file.arrayBuffer();
+    const d = await loadDeck(buf);
+    if (!d.count) throw new Error('No slides found in this file.');
+    deck?.destroy();
+    deck = d; deckBuf = buf; deckName = file.name; deckId = Math.random().toString(36).slice(2, 10); index = 0;
+    dropMsg('');
+    showApp();
+    for (const c of conns) sendDeck(c);
+  } catch (e) {
+    console.error(e);
+    dropMsg(`Couldn't open this file: ${escapeHtml(e.message || String(e))}`, true);
+  }
+}
+function dropMsg(html, err) { $('dropStatus').innerHTML = html; $('dropStatus').className = err ? 'err' : ''; }
+function escapeHtml(s) { return s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+
+$('file').onchange = (e) => { openFile(e.target.files[0]); e.target.value = ''; };
+const drop = $('drop');
+['dragenter', 'dragover'].forEach((t) => drop.addEventListener(t, (e) => { e.preventDefault(); drop.classList.add('over'); }));
+['dragleave', 'drop'].forEach((t) => drop.addEventListener(t, (e) => { e.preventDefault(); drop.classList.remove('over'); }));
+window.addEventListener('dragover', (e) => e.preventDefault());
+window.addEventListener('drop', (e) => { e.preventDefault(); openFile(e.dataTransfer.files[0]); });
+$('another').onclick = () => $('file').click();
+
+// ---------- Presenter UI ----------
+let thumbObserver;
+function showApp() {
+  $('landing').hidden = true;
+  $('app').hidden = false;
+  window.scrollTo(0, 0);
+  $('deckName').textContent = deckName.replace(/\.pptx$/i, '');
+  $('deckMeta').textContent = `${deck.count} slide${deck.count === 1 ? '' : 's'}`;
+  $('preview').style.aspectRatio = `${deck.width} / ${deck.height}`;
+
+  thumbObserver?.disconnect();
+  thumbObserver = new IntersectionObserver((entries) => {
+    for (const en of entries) {
+      if (!en.isIntersecting || en.target.dataset.done) continue;
+      en.target.dataset.done = '1';
+      deck.render(Number(en.target.dataset.i), en.target.querySelector('.box'), en.target.clientWidth - 4, en.target.clientHeight - 4);
+    }
+  }, { rootMargin: '400px' });
+  $('thumbs').replaceChildren(...Array.from({ length: deck.count }, (_, i) => {
+    const b = document.createElement('div');
+    b.setAttribute('role', 'button'); b.tabIndex = 0;
+    b.className = 'thumb'; b.dataset.i = i; b.style.aspectRatio = `${deck.width} / ${deck.height}`;
+    b.innerHTML = `<div class="box"></div>`;
+    b.onclick = () => go(i);
+    thumbObserver.observe(b);
+    return b;
+  }));
+  update();
+}
+
+function update() {
+  if (!deck) return;
+  const p = $('preview');
+  deck.render(index, p, p.clientWidth, p.clientHeight);
+  [...$('thumbs').children].forEach((b, i) => b.classList.toggle('cur', i === index));
+  if (!$('stage').hidden) renderStage();
+  broadcast({ t: 'state', i: index, n: deck.count, id: deckId });
+}
+
+function go(i) {
+  if (!deck) return;
+  const next = Math.max(0, Math.min(deck.count - 1, i));
+  if (next === index) return;
+  index = next;
+  update();
+}
+
+function renderStage() {
+  deck.render(index, $('stageSlide'), window.innerWidth, window.innerHeight);
+  $('stageCount').textContent = `${index + 1} / ${deck.count}`;
+}
+
+$('present').onclick = async () => {
+  $('stage').hidden = false;
+  try { await document.documentElement.requestFullscreen(); } catch {}
+  renderStage();
 };
+function exitStage() {
+  $('stage').hidden = true;
+  if (document.fullscreenElement) document.exitFullscreen();
+}
+document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement) $('stage').hidden = true; });
+window.addEventListener('resize', () => { if (deck) { if (!$('stage').hidden) renderStage(); const p = $('preview'); deck.render(index, p, p.clientWidth, p.clientHeight); } });
+$('stage').onclick = () => go(index + 1);
+document.addEventListener('keydown', (e) => {
+  if (!deck || e.target.tagName === 'INPUT') return;
+  if (['ArrowRight', 'ArrowDown', ' ', 'PageDown', 'Enter'].includes(e.key)) { e.preventDefault(); go(index + 1); }
+  else if (['ArrowLeft', 'ArrowUp', 'PageUp', 'Backspace'].includes(e.key)) { e.preventDefault(); go(index - 1); }
+  else if (e.key === 'Home') go(0);
+  else if (e.key === 'End') go(deck.count - 1);
+  else if (e.key === 'Escape') exitStage();
+});
+
+// ---------- Phone link (WebRTC via PeerJS) ----------
+// The room id is kept for this tab, so a page refresh keeps the same QR code.
+let room = sessionStorage.getItem('pptx-room');
+if (!room) { room = newRoom(); sessionStorage.setItem('pptx-room', room); }
+function newRoom() {
+  const a = 'abcdefghijkmnpqrstuvwxyz23456789';
+  return Array.from(crypto.getRandomValues(new Uint8Array(10)), (b) => a[b % a.length]).join('');
+}
+
+let peer, retries = 0;
+function startPeer() {
+  peer = new Peer('pptxremote-' + room, { debug: 1 });
+  peer.on('open', () => { retries = 0; setLink(); });
+  peer.on('connection', (c) => {
+    c.on('open', () => { conns.add(c); setLink(); });
+    c.on('data', (d) => onData(c, d));
+    c.on('close', () => { conns.delete(c); setLink(); });
+    c.on('error', () => { conns.delete(c); setLink(); });
+  });
+  peer.on('disconnected', () => { setLink('Reconnecting…'); setTimeout(() => !peer.destroyed && peer.reconnect(), 1500); });
+  peer.on('error', (e) => {
+    console.warn('peer', e.type, e);
+    if (e.type === 'unavailable-id') {
+      // After a refresh the old id can be held for a moment. Retry, then pick a new one.
+      peer.destroy();
+      if (++retries > 3) { room = newRoom(); sessionStorage.setItem('pptx-room', room); retries = 0; showQR(); }
+      setTimeout(startPeer, 1500);
+    } else if (['network', 'server-error', 'socket-error', 'socket-closed'].includes(e.type)) {
+      setLink('Connection problem, retrying…', 'err');
+      peer.destroy();
+      setTimeout(startPeer, 3000);
+    }
+  });
+}
+
+function setLink(text, cls) {
+  const n = conns.size;
+  const el = $('linkStatus');
+  el.className = cls || (n ? 'on' : '');
+  el.querySelector('span').textContent = text || (n ? `${n === 1 ? 'Phone' : n + ' phones'} connected` : (peer?.open ? 'Waiting for your phone…' : 'Connecting…'));
+}
+
+function remoteUrl() { return new URL('remote.html#' + room, location.href).href; }
+function showQR() {
+  const qr = qrcode(0, 'M');
+  qr.addData(remoteUrl());
+  qr.make();
+  $('qr').innerHTML = qr.createSvgTag({ cellSize: 4, margin: 0, scalable: true });
+  $('remoteUrl').value = remoteUrl();
+}
+$('copyUrl').onclick = () => { navigator.clipboard.writeText(remoteUrl()); $('copyUrl').textContent = 'Copied'; setTimeout(() => ($('copyUrl').textContent = 'Copy'), 1500); };
+
+function onData(c, d) {
+  let msg;
+  try { msg = JSON.parse(d); } catch { return; }
+  if (msg.t === 'hello') {
+    if (!deck) c.send(JSON.stringify({ t: 'nodeck' }));
+    else if (msg.have === deckId) c.send(JSON.stringify({ t: 'state', i: index, n: deck.count, id: deckId }));
+    else sendDeck(c);
+  } else if (msg.t === 'go') go(msg.i);
+  else if (msg.t === 'step') go(index + (msg.d > 0 ? 1 : -1));
+}
+
+async function sendDeck(c) {
+  const id = deckId, buf = deckBuf;
+  c.send(JSON.stringify({ t: 'deck', id, name: deckName, size: buf.byteLength }));
+  const dc = c.dataChannel;
+  if (dc) dc.bufferedAmountLowThreshold = 256 * 1024;
+  for (let off = 0; off < buf.byteLength; off += CHUNK) {
+    if (!c.open || id !== deckId) return; // closed, or a newer deck replaced this one
+    while (dc && dc.bufferedAmount > 2 * 1024 * 1024) {
+      await new Promise((r) => { dc.addEventListener('bufferedamountlow', r, { once: true }); setTimeout(r, 500); });
+    }
+    c.send(buf.slice(off, off + CHUNK));
+  }
+  c.send(JSON.stringify({ t: 'state', i: index, n: deck.count, id: deckId }));
+}
+
+function broadcast(msg) {
+  const s = JSON.stringify(msg);
+  for (const c of conns) if (c.open) c.send(s);
+}
+
+showQR();
+startPeer();
 </script>
 </body>
 </html>

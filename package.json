@@ -1,7 +1,0 @@
-{
-  "name": "pptx-remote",
-  "version": "1.0.0",
-  "private": true,
-  "description": "Present a .pptx fullscreen on your Mac and control it from your phone",
-  "scripts": { "start": "node server.js" }
-}
